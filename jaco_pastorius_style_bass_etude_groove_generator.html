@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jaco Pastorius Style Etude & Groove Generator</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-audio.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+
+  <style>
+    .abcjs-css-warning { display: none !important; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    .abcjs-note { fill: #0f172a; }
+    .abcjs-staff { stroke: #64748b; }
+    .abcjs-highlight { fill: #d97706 !important; stroke: #d97706 !important; }
+    .abcjs-tempo { display: none !important; }
+
+    .abcjs-chord { font-size: 14px !important; font-weight: 800 !important; fill: #0f172a !important; }
+    .abcjs-lyric { font-size: 10px !important; font-weight: 700 !important; fill: #b45309 !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
+    .abcjs-annotation { font-size: 10px !important; font-weight: 700 !important; fill: #0284c7 !important; }
+
+    #paper { padding-bottom: 20px; }
+    #paper svg { 
+      overflow: visible !important; 
+      margin-bottom: 30px !important; 
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    .abcjs-inline-audio { margin: 0; padding: 8px 12px; display: flex; align-items: center; gap: 8px; justify-content: center; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .abcjs-inline-audio .abcjs-btn {
+       background-color: #ffffff !important;
+       border: 1px solid #cbd5e1 !important;
+       border-radius: 8px !important;
+       color: #334155 !important;
+       width: 34px !important;
+       height: 34px !important;
+       cursor: pointer;
+       display: inline-flex !important;
+       align-items: center;
+       justify-content: center;
+       margin: 0 2px;
+       padding: 0 !important;
+       transition: all 0.15s ease-in-out !important;
+    }
+    .abcjs-inline-audio .abcjs-btn:hover { background-color: #fef3c7 !important; border-color: #f59e0b !important; }
+    .abcjs-inline-audio .abcjs-btn svg { width: 16px !important; height: 16px !important; fill: #334155 !important; }
+
+    .abcjs-inline-audio .abcjs-btn.abcjs-pushed {
+       background-color: #d97706 !important;
+       border-color: #b45309 !important;
+       color: #ffffff !important;
+       box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25) !important;
+    }
+    .abcjs-inline-audio .abcjs-btn.abcjs-pushed svg { fill: #ffffff !important; }
+  </style>
+</head>
+<body class="bg-stone-100 text-slate-800 font-sans antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ============================================================================
+    // プリセット曲データ（ジャズスタンダード ＋ Jacoの名曲進行）
+    // ============================================================================
+    const standardSongs = [
+      {
+        title: "Continuum (Jaco Pastorius)",
+        category: "Jaco Lyrical Masterpiece",
+        key: "C",
+        defaultBpm: 112,
+        measures: 16,
+        chords: [
+          "Emaj7", "Emaj7", "Amaj7", "Amaj7", "Emaj7", "Emaj7", "G#m7 C#7", "F#m7 B7",
+          "Am7", "D#m7b5 G#7", "C#m7", "Dm7 G7", "Cmaj7", "Bm7 E7", "Amaj7", "Am7 D7"
+        ]
+      },
+      {
+        title: "Autumn Leaves",
+        category: "Standard",
+        key: "Gm",
+        defaultBpm: 120,
+        measures: 32,
+        chords: [
+          "Cm7", "F7", "Bbmaj7", "Ebmaj7", "Am7b5", "D7", "Gm7", "Gm7",
+          "Cm7", "F7", "Bbmaj7", "Ebmaj7", "Am7b5", "D7", "Gm7", "Gm7",
+          "Am7b5", "D7", "Gm7", "Gm7", "Cm7", "F7", "Bbmaj7", "Ebmaj7",
+          "Am7b5", "D7", "Gm7 C7", "Fm7 Bb7", "Ebmaj7", "Am7b5 D7", "Gm7", "Gm7"
+        ]
+      },
+      {
+        title: "Donna Lee (Jaco Intro / Head Changes)",
+        category: "Jaco / Bebop",
+        key: "Ab",
+        defaultBpm: 150,
+        measures: 16,
+        chords: [
+          "Abmaj7", "F7", "Bb7", "Bb7", "Bbm7", "Eb7", "Abmaj7", "Ebm7 Ab7",
+          "Dbmaj7", "Gb7", "Abmaj7", "F7", "Bb7", "Bb7", "Bbm7", "Eb7"
+        ]
+      },
+      {
+        title: "Kuru / Speak Like a Child (Modal Vamp)",
+        category: "Jaco Groove",
+        key: "Cm",
+        defaultBpm: 136,
+        measures: 16,
+        chords: [
+          "Am7", "Am7", "Am7", "Am7", "Fmaj7", "G7", "Am7", "Am7",
+          "Dm7", "Em7", "Fmaj7", "G7", "Am7", "Am7", "Fmaj7 G7", "Am7"
+        ]
+      },
+      {
+        title: "Come On, Come Over (Funk Riff Progression)",
+        category: "Jaco Groove",
+        key: "C",
+        defaultBpm: 112,
+        measures: 16,
+        chords: [
+          "C7", "C7", "C7", "C7", "F7", "F7", "C7", "C7",
+          "G7", "Ab7 G7", "C7", "C7", "D7", "F7 G7", "C7", "C7"
+        ]
+      },
+      {
+        title: "The Chicken (Soul / Funk Standard)",
+        category: "Jaco Live Classic",
+        key: "Bb",
+        defaultBpm: 108,
+        measures: 16,
+        chords: [
+          "Bb7", "Bb7", "Bb7", "Bb7", "Eb7", "Eb7", "D7", "G7",
+          "C7", "C7", "C7", "C7", "F7", "F7", "Bb7", "F7"
+        ]
+      },
+      {
+        title: "Teen Town (Weather Report Changes)",
+        category: "Jaco Signature",
+        key: "C",
+        defaultBpm: 132,
+        measures: 16,
+        chords: [
+          "C7", "A7", "F7", "D7", "C7", "A7", "F7", "D7",
+          "Em7", "Em7", "Fmaj7", "D7", "C7", "A7", "F7", "D7"
+        ]
+      },
+      {
+        title: "Blue Bossa",
+        category: "Standard",
+        key: "Cm",
+        defaultBpm: 130,
+        measures: 16,
+        chords: [
+          "Cm7", "Cm7", "Fm7", "Fm7", "Dm7b5", "G7", "Cm7", "Cm7",
+          "Ebm7", "Ab7", "Dbmaj7", "Dbmaj7", "Dm7b5", "G7", "Cm7", "Dm7b5 G7"
+        ]
+      },
+      {
+        title: "St. Thomas",
+        category: "Standard",
+        key: "C",
+        defaultBpm: 135,
+        measures: 16,
+        chords: [
+          "Cmaj7", "Em7b5 A7", "Dm7", "G7", "Cmaj7", "Em7b5 A7", "Dm7", "G7",
+          "Em7b5", "A7", "Dm7", "G7", "Cmaj7 C7", "Fmaj7 F#dim7", "Cmaj7 G7", "Cmaj7"
+        ]
+      },
+      {
+        title: "Giant Steps",
+        category: "Standard",
+        key: "C",
+        defaultBpm: 140,
+        measures: 16,
+        chords: [
+          "Bmaj7 D7", "Gmaj7 Bb7", "Ebmaj7", "Am7 D7",
+          "Gmaj7 Bb7", "Ebmaj7 F#7", "Bmaj7", "Fm7 Bb7",
+          "Ebmaj7", "Am7 D7", "Gmaj7", "C#m7 F#7",
+          "Bmaj7", "Fm7 Bb7", "Ebmaj7", "C#m7 F#7"
+        ]
+      }
+    ];
+
+    const PITCH_CLASSES = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8,
+      'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    };
+
+    const KEY_FLATS = {
+      'Gm': ['B', 'E'],
+      'Bb': ['B', 'E'],
+      'Cm': ['B', 'E', 'A'],
+      'Eb': ['B', 'E', 'A'],
+      'Ab': ['B', 'E', 'A', 'D'],
+      'F': ['B'],
+      'C': []
+    };
+
+    // ============================================================================
+    // ★ モード1：Jaco Solo リック・セル定義（歌心・間・3連符・16分ピックアップ重視）
+    // ============================================================================
+
+    // 1. 『Continuum』/『Portrait of Tracy』系：リリカルな空間・ロングトーン(Mwah)・3連符・3音16分ピックアップ
+    // 譜面 p.1〜p.4, p.38〜p.44 のように、休符や開放Low音のあとに9-10-11のピックアップで入り、高音で伸ばす歌心重視のセル
+    const JACO_CONTINUUM_LYRICAL_CELLS = [
+      {
+        name: "Continuum Opening Pickup & Mwah Hold",
+        tag: "Continuum Lyrical",
+        // 8分休符 + 16分2音ピックアップ(5->6) + 2拍目の9th/M7thロングトーン(付点4分)
+        pattern: "z8_16x2_dot4",
+        intervalsMinor: [7, 10, 14],
+        intervalsMajor: [7, 9, 11],
+        preferHighStretch: true
+      },
+      {
+        name: "Low Pedal Ring to High Register Sing",
+        tag: "Pedal + High Mwah",
+        // 低音ルート(8分) -> ハイポジ9th(8分) -> ハイポジ3rd(二分音符相当の伸び)
+        pattern: "8_8_4",
+        intervalsMinor: [0, 14, 15],
+        intervalsMajor: [0, 14, 16],
+        preferHighStretch: true
+      },
+      {
+        name: "Continuum Laid-back Triplet Walkdown",
+        tag: "Jaco 8th Triplets",
+        // Continuum p.39/p.40 の特徴的な8分3連符の歌うような下降＋4分音符解決
+        pattern: "trip_4",
+        intervalsMinor: [15, 14, 12, 10],
+        intervalsMajor: [16, 14, 11, 9],
+        preferHighStretch: true
+      },
+      {
+        name: "Chromatic 3-Note Pickup (9-10-11) to Hold",
+        tag: "Pickup 9-10-11",
+        // Continuum p.1 "9-10-11 -> 9" のクロマチック16分ピックアップ＋ロングトーン
+        pattern: "16x3_8_4",
+        intervalsMinor: [12, 13, 14, 15, 12],
+        intervalsMajor: [14, 15, 16, 19, 16],
+        preferHighStretch: true
+      },
+      {
+        name: "High 5th-to-6th Pull-off Motif (16-11)",
+        tag: "Continuum 16-11",
+        // Continuum p.8 / p.43 の 1弦16F-11F ワイドインターバル・ペダルモチーフ
+        pattern: "88_4",
+        intervalsMinor: [19, 14, 15],
+        intervalsMajor: [19, 14, 16],
+        preferHighStretch: true
+      },
+      {
+        name: "Singing Syncopated Slide",
+        tag: "Fretless Slide",
+        // 4分音符で溜めてから8分シンコペーション
+        pattern: "4_z8_8",
+        intervalsMinor: [14, 15],
+        intervalsMajor: [11, 9],
+        preferHighStretch: true
+      }
+    ];
+
+    // 2. ペンタトニック：16分で埋め尽くさず、「歌う8分/3連ペンタ」と「ここぞの16分カスケード（画像1 / Word of Mouth p.95）」を使い分ける
+    const JACO_PENTA_DYNAMIC_HALF_CELLS = [
+      {
+        name: "Word of Mouth (14-17-19) Penta Hook",
+        tag: "Jaco Penta (14-17-19)",
+        // p.93/95 16分4つで駆け上がり、3拍目裏まで8分で歌う
+        pattern: "16x4_4",
+        intervalsMinor: [7, 10, 12, 15, 19],
+        intervalsMajor: [7, 9, 12, 16, 19],
+        preferHighStretch: true
+      },
+      {
+        name: "Soul Intro Triplet Pentatonic",
+        tag: "Soul Intro Penta",
+        // p.19 Soul Intro のような8分3連符ペンタトニックのタメ
+        pattern: "trip_88",
+        intervalsMinor: [12, 10, 12, 15, 12],
+        intervalsMajor: [12, 9, 12, 16, 14],
+        preferHighStretch: true
+      },
+      {
+        name: "Opus Pocus Syncopated Penta",
+        tag: "Opus Pocus Motif",
+        // p.78 Opus Pocus の休符を活かしたペンタ・モチーフ
+        pattern: "8_z16_16_4",
+        intervalsMinor: [0, 10, 12, 15],
+        intervalsMajor: [0, 9, 12, 16],
+        preferHighStretch: true
+      },
+      {
+        name: "Breathing 4th-Interval Penta",
+        tag: "Wide 4ths Penta",
+        pattern: "z8_8_88",
+        intervalsMinor: [5, 10, 15, 12],
+        intervalsMajor: [4, 9, 14, 16],
+        preferHighStretch: true
+      }
+    ];
+
+    // ここぞのクライマックスでのみ発動する1小節16分ペンタトニック・カスケード（添付画像1 & Opus Pocus p.80）
+    const JACO_PENTA_CASCADE_FULL_BAR = [
+      {
+        name: "Image1 Style Wide Penta Cascade (to Hold)",
+        tag: "Penta Cascade -> Mwah",
+        // 1〜3拍目を画像1のワイドストレッチ16分音符で駆け上がり・駆け下り、4拍目は四分音符でしっかり歌って余韻を残す！
+        intervalsMinor12: [0, 2, 3, 7, 10, 14, 15, 19, 22, 19, 15, 14],
+        intervalsMajor12: [0, 2, 4, 9, 11, 14, 16, 19, 21, 19, 16, 14],
+        targetHoldMinor: 10,
+        targetHoldMajor: 11
+      },
+      {
+        name: "Word of Mouth High Box Cascade",
+        tag: "14-17-19 Box Run",
+        // p.95 Word of Mouth の 14-17-19 ハイポジションペンタを駆け抜けて最後伸ばす
+        intervalsMinor12: [7, 10, 12, 15, 17, 19, 17, 15, 12, 15, 12, 10],
+        intervalsMajor12: [7, 9, 12, 14, 16, 19, 16, 14, 12, 14, 12, 9],
+        targetHoldMinor: 12,
+        targetHoldMajor: 12
+      }
+    ];
+
+    // 3. チャーリー・パーカー / 『Donna Lee』(p.45〜p.51) 直系のスウィング8分＆3連ターン＆休符シンコペーション
+    const JACO_PARKER_CELLS = [
+      {
+        name: "Donna Lee Bar 1 Turn (12-13-12-15-14)",
+        tag: "Donna Lee Turn",
+        // p.45 1小節目：8分3連ターン + 8分2つ（16分で詰め込まずスウィング感重視）
+        pattern: "trip_88",
+        intervalsMinor: [3, 5, 3, 2, 0],
+        intervalsMajor: [4, 5, 4, 2, 0]
+      },
+      {
+        name: "Donna Lee Offbeat Bebop Entry",
+        tag: "Donna Lee Sync",
+        // 8分休符の裏から入るパーカー王道フレーズ
+        pattern: "z8_8_88",
+        intervalsMinor: [12, 10, 7, 3],
+        intervalsMajor: [12, 9, 7, 4]
+      },
+      {
+        name: "Bird Chromatic Enclosure to Hold",
+        tag: "Bird Enclosure",
+        // エンクロージャーで3度に解決して4分音符で伸ばす
+        pattern: "88_4",
+        intervalsMinor: [5, 2, 3],
+        intervalsMajor: [5, 3, 4]
+      },
+      {
+        name: "Donna Lee Arpeggio & Triplet Drop",
+        tag: "Parker Triplet",
+        pattern: "88_trip",
+        intervalsMinor: [0, 3, 7, 10, 9],
+        intervalsMajor: [0, 4, 7, 11, 9]
+      },
+      {
+        name: "Jaco Bebop Rake & Pause",
+        tag: "Bebop Phrase",
+        pattern: "4_88",
+        intervalsMinor: [10, 9, 7],
+        intervalsMajor: [11, 9, 7]
+      }
+    ];
+
+    // 4. ディミニッシュ・スケール＆トライアドペア（Continuum p.7 / Donna Lee p.46 / Opus Pocus p.78 の緩急あるディミニッシュ）
+    const JACO_DIMINISHED_CELLS = [
+      {
+        name: "Continuum Triplet Diminished Slur",
+        tag: "Dim Triplets",
+        // Continuum p.7 の 8分3連符ディミニッシュ・シーケンス
+        pattern: "trip_88",
+        intervals: [3, 4, 7, 10, 9]
+      },
+      {
+        name: "Donna Lee Diminished Arpeggio Sweep",
+        tag: "Dim Arpeggio",
+        // Donna Lee p.46 Ab° の 8分音符ディミニッシュ駆け上がり
+        pattern: "z8_8_88",
+        intervals: [0, 3, 6, 9]
+      },
+      {
+        name: "Opus Pocus Diminished Burst to Target",
+        tag: "Dim Burst -> Hold",
+        // 1拍だけ16分ディミニッシュで装飾し、2拍目はターゲット音で伸ばす
+        pattern: "16x4_4",
+        intervals: [1, 3, 4, 6, 7]
+      },
+      {
+        name: "Symmetrical Con-Dim Resolution",
+        tag: "Con-Dim Line",
+        pattern: "88_88",
+        intervals: [9, 6, 7, 4]
+      }
+    ];
+
+    const JACO_PENTA_HALF_CELLS = [
+      {
+        name: "Penta Burst Ascend",
+        tag: "Penta 16th",
+        pattern: "16x8",
+        intervalsMinor: [0, 2, 3, 7, 10, 12, 14, 15],
+        intervalsMajor: [0, 2, 4, 7, 9, 12, 14, 16],
+        preferHighStretch: true
+      },
+      {
+        name: "Penta High Cascade Descend",
+        tag: "Penta Slide",
+        pattern: "16x8",
+        intervalsMinor: [19, 15, 14, 12, 10, 7, 5, 3],
+        intervalsMajor: [19, 16, 14, 12, 9, 7, 4, 2],
+        preferHighStretch: true
+      },
+      {
+        name: "Syncopated Jaco Penta",
+        tag: "Jaco Horn-like",
+        pattern: "z16_16x3_88",
+        intervalsMinor: [7, 10, 12, 15, 14],
+        intervalsMajor: [7, 9, 12, 16, 14],
+        preferHighStretch: false
+      }
+    ];
+
+    // 2. チャーリー・パーカー / ドナ・リー系ビバップ・クロマチックアプローチ
+    const JACO_PARKER_CELLS = [
+      {
+        name: "Donna Lee Opening Turn",
+        tag: "Parker / Donna Lee",
+        pattern: "8_trip_88",
+        // 16分3連装飾＋クロマチック下降
+        intervalsMinor: [7, 9, 7, 6, 5, 3],
+        intervalsMajor: [7, 9, 7, 6, 5, 4]
+      },
+      {
+        name: "Bird Chromatic Enclosure to 3rd",
+        tag: "Bird Enclosure",
+        pattern: "88_88",
+        intervalsMinor: [5, 2, 4, 3],
+        intervalsMajor: [5, 3, 5, 4]
+      },
+      {
+        name: "Parker 16th Bebop Burst",
+        tag: "Bebop 16th",
+        pattern: "88_16x4",
+        intervalsMinor: [0, 3, 7, 10, 9, 8],
+        intervalsMajor: [0, 4, 7, 11, 10, 9]
+      },
+      {
+        name: "Donna Lee Arpeggio Sweep",
+        tag: "Parker Arpeggio",
+        pattern: "trip_88",
+        intervalsMinor: [0, 3, 7, 10, 9],
+        intervalsMajor: [0, 4, 7, 11, 9]
+      },
+      {
+        name: "Jaco Horn Syncopation",
+        tag: "Jaco Bebop",
+        pattern: "z8_16x2_88",
+        intervalsMinor: [10, 9, 10, 12, 7],
+        intervalsMajor: [11, 10, 11, 12, 7]
+      }
+    ];
+
+    // 3. ディミニッシュ・スケール (Con-Dim / Symmetric Diminished) ＆トライアドペア
+    const JACO_DIMINISHED_CELLS = [
+      {
+        name: "Symmetrical Diminished 16th Run",
+        tag: "Dim Scale (16th)",
+        pattern: "16x8",
+        // H-W Diminished: R, b9, #9, 3, #11, 5, 13, b7
+        intervals: [0, 1, 3, 4, 6, 7, 9, 10]
+      },
+      {
+        name: "Jaco Diminished Arpeggio Skip",
+        tag: "Dim Pattern",
+        pattern: "16x8",
+        intervals: [1, 4, 7, 10, 13, 10, 7, 4]
+      },
+      {
+        name: "Con-Dim Triad Pair",
+        tag: "Con-Dim",
+        pattern: "88_16x4",
+        intervals: [4, 7, 10, 9, 6, 3]
+      },
+      {
+        name: "Altered / Dim Tension Resolution",
+        tag: "Dim->Resolve",
+        pattern: "trip_88",
+        intervals: [3, 1, 0, 10, 4]
+      }
+    ];
+
+    // 4. コード重音 (10度ダブルストップ) ＆ ナチュラルハーモニクス (Portrait of Tracy風)
+    const JACO_CHORD_HARMONICS_CELLS = [
+      {
+        name: "Jaco 10th Double Stop",
+        tag: "10th Chord",
+        type: "double_stop_10th"
+      },
+      {
+        name: "Natural Harmonics Cluster",
+        tag: "Harmonics <>",
+        type: "natural_harmonics"
+      },
+      {
+        name: "Harmonics + 10th Voicing",
+        tag: "Harm + 10th",
+        type: "harm_and_10th"
+      }
+    ];
+
+    // ============================================================================
+    // ★ モード2：16ビート・バッキング (Kuru / Come On, Come Over / Teen Town)
+    // ============================================================================
+    // 添付画像2『Kuru / Speak Like a Child』完全再現を含むパターン群
+    const JACO_GROOVE_STYLES = {
+      kuru: {
+        name: "Kuru / Speak Like a Child (画像2再現)",
+        desc: "ルート・5度・b7度・9度・10度を4弦〜1弦まで高速横断する連続16分音符ストリング・シンクロナイゼーション"
+      },
+      come_on: {
+        name: "Come On, Come Over (R&B Funk)",
+        desc: "ブリッジPU上のタイトな16分音符。オクターブ跳躍とb7→6→5のクロマチック・ファンク・バンプ"
+      },
+      teen_town: {
+        name: "Teen Town / Havona (16th Fusion)",
+        desc: "シンコペーションとコードトーン・アプローチを組み合わせたウェザー・リポート風16ビートライン"
+      }
+    };
+
+    function App() {
+      const [measureCount, setMeasureCount] = useState(16);
+      const [bpm, setBpm] = useState(130);
+      const [chords, setChords] = useState(Array(64).fill(""));
+      const [currentSong, setCurrentSong] = useState(standardSongs[2]); // デフォルトでKuru進行またはAutumn Leaves等すぐ試せる設定
+      
+      // メイン2大モード: 'solo' | 'groove'
+      const [mainMode, setMainMode] = useState("solo");
+
+      // ソロモード用設定
+      const [soloFocus, setSoloFocus] = useState("jaco_mix"); // 'jaco_mix' | 'penta_cascade' | 'parker_bebop' | 'diminished'
+      const [chordHarmonicsFreq, setChordHarmonicsFreq] = useState("sometimes"); // 'none' | 'sometimes' | 'often'
+
+      // 16ビート・グルーヴモード用設定
+      const [grooveStyle, setGrooveStyle] = useState("kuru"); // 'kuru' | 'come_on' | 'teen_town'
+      const [ghostDensity, setGhostDensity] = useState("authentic"); // 'light' | 'authentic' | 'heavy'
+
+      // 表示オプション
+      const [tabView, setTabView] = useState("bass"); // Jaco特化のためデフォルトで4弦ベースTAB
+      const [showDegrees, setShowDegrees] = useState(true);
+      const [isBackingOnly, setIsBackingOnly] = useState(false);
+
+      const [abcString, setAbcString] = useState("");
+      const [audioAbcString, setAudioAbcString] = useState("");
+      const [backingAbcString, setBackingAbcString] = useState("");
+      const [tabNotesData, setTabNotesData] = useState([]);
+      
+      const [abcjsLoaded, setAbcjsLoaded] = useState(false);
+      const [isModalOpen, setIsModalOpen] = useState(false);
+
+      const audioRef = useRef(null);
+      const synthRef = useRef(null);
+
+      // 初回ロード時にContinuumをセット
+      useEffect(() => {
+        const song = standardSongs[0];
+        setMeasureCount(song.measures);
+        setBpm(song.defaultBpm || 112);
+        const newChords = Array(64).fill("");
+        song.chords.forEach((c, i) => { newChords[i] = c; });
+        setChords(newChords);
+        setCurrentSong(song);
+      }, []);
+
+      useEffect(() => {
+        if (window.ABCJS) {
+          setAbcjsLoaded(true);
+          return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js";
+        script.async = true;
+        script.onload = () => setAbcjsLoaded(true);
+        document.body.appendChild(script);
+      }, []);
+
+      useEffect(() => {
+        if (abcjsLoaded && chords[0] !== "") {
+          generateJacoScore();
+        }
+      }, [abcjsLoaded, chords, mainMode, soloFocus, chordHarmonicsFreq, grooveStyle, ghostDensity, tabView, showDegrees]);
+
+      useEffect(() => {
+        if (abcjsLoaded && abcString && window.ABCJS) {
+          let tablatureOptions = [];
+          
+          if (tabView === 'bass') {
+            tablatureOptions = [{
+              instrument: 'guitar',
+              label: 'TAB (4-Str Bass)',
+              tuning: ['E,', 'A,', 'D', 'G', 'B', 'e'] 
+            }];
+          } else if (tabView === 'guitar') {
+            tablatureOptions = [{
+              instrument: 'guitar',
+              label: 'TAB (Gt)',
+              tuning: ['E,', 'A,', 'D', 'G', 'B', 'e']
+            }];
+          }
+
+          window.ABCJS.renderAbc("paper", abcString, {
+            responsive: "resize",
+            add_classes: true,
+            paddingtop: 25,
+            paddingbottom: 30,
+            paddingleft: 0,
+            paddingright: 0,
+            staffwidth: 860,
+            tablature: tablatureOptions
+          });
+
+          if (tabView !== 'none' && tabNotesData.length > 0) {
+            applyAccurateTabToSvg(tabView === 'bass', tabNotesData);
+          }
+
+          const currentAudioString = isBackingOnly ? backingAbcString : audioAbcString;
+          const visualObjForAudio = window.ABCJS.renderAbc("audio-paper", currentAudioString, {
+            add_classes: true
+          })[0];
+
+          if (window.ABCJS.synth.supportsAudio() && audioRef.current) {
+            if (synthRef.current) {
+              synthRef.current.pause();
+              synthRef.current.disable(true);
+            }
+            audioRef.current.innerHTML = "";
+
+            const cursorControl = {
+              onStart: function() {
+                const svg = document.querySelector("#paper svg");
+                if (svg) svg.querySelectorAll(".abcjs-highlight").forEach(n => n.classList.remove("abcjs-highlight"));
+              },
+              onEvent: function(ev) {
+                if (!ev || (ev.measureStart && ev.left === null)) return;
+                const displaySvg = document.querySelector("#paper svg");
+                const audioSvg = document.querySelector("#audio-paper svg");
+                if (!displaySvg || !audioSvg) return;
+
+                displaySvg.querySelectorAll(".abcjs-highlight").forEach(n => n.classList.remove("abcjs-highlight"));
+
+                if (ev.elements && Array.isArray(ev.elements)) {
+                  const audioNotes = Array.from(audioSvg.querySelectorAll(".abcjs-v0 .abcjs-note, .abcjs-v0 .abcjs-rest"));
+                  const displayNotes = Array.from(displaySvg.querySelectorAll(".abcjs-note, .abcjs-rest"));
+
+                  ev.elements.forEach(element => {
+                    if (!element) return;
+                    let index = audioNotes.indexOf(element);
+                    if (index === -1 && element.closest) {
+                      const parent = element.closest('.abcjs-note, .abcjs-rest');
+                      if (parent) index = audioNotes.indexOf(parent);
+                    }
+                    if (index !== -1 && displayNotes[index]) {
+                      displayNotes[index].classList.add("abcjs-highlight");
+                    }
+                  });
+                }
+              },
+              onFinished: function() {
+                const svg = document.querySelector("#paper svg");
+                if (svg) svg.querySelectorAll(".abcjs-highlight").forEach(n => n.classList.remove("abcjs-highlight"));
+              }
+            };
+
+            const synthControl = new window.ABCJS.synth.SynthController();
+            synthControl.load(audioRef.current, cursorControl, {
+              displayLoop: true,
+              displayRestart: true,
+              displayPlay: true,
+              displayProgress: true,
+              displayWarp: false 
+            });
+
+            synthControl.setTune(visualObjForAudio, false, { chordsOff: true }).catch(console.error);
+            synthRef.current = synthControl;
+          }
+        }
+      }, [abcString, audioAbcString, backingAbcString, isBackingOnly, abcjsLoaded, tabView, showDegrees, tabNotesData]);
+
+      // ============================================================================
+      // SVG 4弦ベースTAB譜オーバーライド（重音・ハーモニクス・19Fハイポジ対応）
+      // ============================================================================
+      const applyAccurateTabToSvg = (isBass, notesList) => {
+        const svg = document.querySelector("#paper svg");
+        if (!svg) return;
+
+        const allPathsAndLines = Array.from(svg.querySelectorAll("path, line"));
+        const horizontalLines = allPathsAndLines.filter(el => {
+          try {
+            const box = el.getBBox();
+            return box.width > 300 && box.height < 2.5;
+          } catch (e) { return false; }
+        });
+
+        horizontalLines.sort((a, b) => a.getBBox().y - b.getBBox().y);
+
+        let staffClusters = [];
+        horizontalLines.forEach(line => {
+          const y = line.getBBox().y;
+          if (staffClusters.length === 0) {
+            staffClusters.push([line]);
+          } else {
+            const currentCluster = staffClusters[staffClusters.length - 1];
+            const prevY = currentCluster[currentCluster.length - 1].getBBox().y;
+            if (Math.abs(y - prevY) < 1.0) {
+            } else if (y - prevY < 18) {
+              currentCluster.push(line);
+            } else {
+              staffClusters.push([line]);
+            }
+          }
+        });
+
+        const tabClusters = staffClusters.filter(c => c.length === 6);
+        const allTextEls = Array.from(svg.querySelectorAll("text"));
+
+        let globalNoteIdx = 0;
+
+        tabClusters.forEach(tabLines => {
+          const lineYs = tabLines.map(l => l.getBBox().y);
+          const yTop = lineYs[0];
+          const yBot = lineYs[5];
+          const lineBounds = tabLines[0].getBBox();
+
+          const tabNumberTexts = allTextEls.filter(txt => {
+            const str = txt.textContent.trim();
+            if (!/^[0-9?]+$/.test(str)) return false;
+            if (txt.classList.contains("abcjs-bar-number") || txt.closest(".abcjs-time-signature")) return false;
+            try {
+              const box = txt.getBBox();
+              const cy = box.y + box.height / 2;
+              return cy >= yTop - 10 && cy <= yBot + 10 && box.x > lineBounds.x + 25;
+            } catch (e) { return false; }
+          });
+
+          // X座標順（同タイミングの重音はY座標順）でソート
+          tabNumberTexts.sort((a, b) => {
+            const bxA = a.getBBox();
+            const bxB = b.getBBox();
+            if (Math.abs(bxA.x - bxB.x) > 4) return bxA.x - bxB.x;
+            return bxA.y - bxB.y;
+          });
+
+          tabNumberTexts.forEach(txt => {
+            if (globalNoteIdx >= notesList.length) return;
+            const target = isBass ? notesList[globalNoteIdx].bass : notesList[globalNoteIdx].guitar;
+            globalNoteIdx++;
+
+            const box = txt.getBBox();
+            const cy = box.y + box.height / 2;
+            let oldStringIdx = 0;
+            let minDist = 999;
+            lineYs.forEach((ly, idx) => {
+              const d = Math.abs(cy - ly);
+              if (d < minDist) {
+                minDist = d;
+                oldStringIdx = idx;
+              }
+            });
+
+            const newStringIdx = Math.min(isBass ? 3 : 5, Math.max(0, target.string - 1)); 
+            const deltaY = lineYs[newStringIdx] - lineYs[oldStringIdx];
+
+            const displayFret = target.fretLabel !== undefined ? String(target.fretLabel) : String(target.fret);
+
+            const tspan = txt.querySelector("tspan");
+            if (tspan) {
+              tspan.textContent = displayFret;
+            } else {
+              txt.textContent = displayFret;
+            }
+
+            if (target.isHarmonic) {
+              txt.style.fill = "#0284c7";
+              txt.style.fontWeight = "800";
+            }
+
+            if (txt.hasAttribute("y")) {
+              const curY = parseFloat(txt.getAttribute("y"));
+              if (!isNaN(curY)) txt.setAttribute("y", String(curY + deltaY));
+            }
+            if (tspan && tspan.hasAttribute("y")) {
+              const curTspanY = parseFloat(tspan.getAttribute("y"));
+              if (!isNaN(curTspanY)) tspan.setAttribute("y", String(curTspanY + deltaY));
+            }
+          });
+
+          if (isBass) {
+            tabLines[4].style.display = "none";
+            tabLines[5].style.display = "none";
+
+            const yFourth = lineYs[3];
+            allPathsAndLines.forEach(el => {
+              if (tabLines.includes(el)) return;
+              try {
+                const box = el.getBBox();
+                if (box.width < 6 && box.height > 20 && Math.abs(box.y - yTop) < 8) {
+                  el.style.display = "none";
+                  const newBar = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                  newBar.setAttribute("x1", String(box.x + box.width / 2));
+                  newBar.setAttribute("y1", String(yTop));
+                  newBar.setAttribute("x2", String(box.x + box.width / 2));
+                  newBar.setAttribute("y2", String(yFourth));
+                  newBar.setAttribute("stroke", "#64748b");
+                  newBar.setAttribute("stroke-width", box.width > 2 ? "2" : "1.2");
+                  svg.appendChild(newBar);
+                }
+                else if (box.x < lineBounds.x + 30 && box.width < 30 && box.y >= yTop - 5 && box.y + box.height > yFourth + 3) {
+                  const scale = (yFourth - yTop) / (yBot - yTop);
+                  el.setAttribute("transform", `translate(0, ${yTop * (1 - scale)}) scale(1, ${scale})`);
+                }
+              } catch (e) {}
+            });
+
+            allTextEls.forEach(txt => {
+              if (txt.textContent.includes("TAB (4-Str")) {
+                try {
+                  const box = txt.getBBox();
+                  if (box.y > yFourth && box.y < yBot + 35) {
+                    const curY = parseFloat(txt.getAttribute("y"));
+                    if (!isNaN(curY)) txt.setAttribute("y", String(curY - (yBot - yFourth)));
+                  }
+                } catch (e) {}
+              }
+            });
+          }
+        });
+      };
+
+      // ============================================================================
+      // 運指計算アルゴリズム（Jacoの7-10Fボックス＆画像1の14-19Fハイポジ対応）
+      // ============================================================================
+      const calcBestBassTab = (midi, prevFretRef, options = {}) => {
+        if (options.forcedString && options.forcedFret !== undefined) {
+          prevFretRef.current = options.forcedFret;
+          return {
+            string: options.forcedString,
+            fret: options.forcedFret,
+            fretLabel: options.fretLabel,
+            isHarmonic: options.isHarmonic || false
+          };
+        }
+
+        // 記譜ピッチ(midi)から実音ベースピッチ(bassMidi = midi - 12)へ変換
+        let bassMidi = midi - 12;
+        const maxBassMidi = options.allowHigh19 ? 62 : 57; // 1弦19F(D4=62)まで許容
+        while (bassMidi > maxBassMidi) bassMidi -= 12;
+        while (bassMidi < 28) bassMidi += 12;
+
+        // 1弦(G)=43, 2弦(D)=38, 3弦(A)=33, 4弦(E)=28
+        const openPitches = [43, 38, 33, 28];
+        let candidates = [];
+        const maxFret = options.allowHigh19 ? 19 : 16;
+        const minFret = options.allowOpen ? 0 : 2;
+        const homeAnchor = options.preferHigh ? 13 : 8; // 画像1は12-16F、画像2(Kuru)は7-10Fが中心
+
+        for (let s = 0; s < 4; s++) {
+          const fret = bassMidi - openPitches[s];
+          if (fret >= minFret && fret <= maxFret) {
+            const distFromPrev = Math.abs(fret - prevFretRef.current);
+            const anchorPenalty = Math.abs(fret - homeAnchor) * 0.45;
+            candidates.push({ string: s + 1, fret, score: distFromPrev + anchorPenalty });
+          }
+        }
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => a.score - b.score);
+          const chosen = candidates[0];
+          prevFretRef.current = prevFretRef.current * 0.65 + chosen.fret * 0.35;
+          return { string: chosen.string, fret: chosen.fret };
+        }
+        return { string: 1, fret: Math.min(19, Math.max(0, bassMidi - 43)) };
+      };
+
+      const calcBestGuitarTab = (midi, prevFretRef, options = {}) => {
+        const openPitches = [64, 59, 55, 50, 45, 40];
+        let candidates = [];
+        for (let s = 0; s < 6; s++) {
+          const fret = midi - openPitches[s];
+          if (fret >= 5 && fret <= 20) {
+            const score = Math.abs(fret - prevFretRef.current) + Math.abs(fret - 9) * 0.3;
+            candidates.push({ string: s + 1, fret, score });
+          }
+        }
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => a.score - b.score);
+          prevFretRef.current = prevFretRef.current * 0.7 + candidates[0].fret * 0.3;
+          return {
+            string: candidates[0].string,
+            fret: candidates[0].fret,
+            fretLabel: options.fretLabel,
+            isHarmonic: options.isHarmonic || false
+          };
+        }
+        return { string: 4, fret: Math.max(2, midi - 50) };
+      };
+
+      const getChordToneInfo = (chordStr) => {
+        const match = chordStr.match(/^[A-G][#b]?/);
+        const root = match ? match[0] : 'C';
+        const rootPitch = PITCH_CLASSES[root] || 0;
+        const type = chordStr.substring(root.length);
+
+        const isMinor = type.includes('m') && !type.includes('maj');
+        const isDim = type.includes('dim') || type.includes('m7b5');
+        const isMajor = type.includes('maj') || type.includes('M7') || type.includes('△');
+        const isV7 = type.includes('7') && !isMinor && !isMajor && !isDim;
+
+        return {
+          rootPitch,
+          isMinor,
+          isDim,
+          isMajor,
+          isV7,
+          thirdOffset: (isMinor || isDim) ? 3 : 4,
+          fifthOffset: isDim ? 6 : 7,
+          seventhOffset: isMajor ? 11 : (type.includes('dim7') ? 9 : 10),
+          chordStr
+        };
+      };
+
+      const getExactDegree = (pitchClass, rootPitch, isV7) => {
+        const diff = (pitchClass - rootPitch + 12) % 12;
+        switch (diff) {
+          case 0: return "R";
+          case 1: return isV7 ? "♭9" : "b2";
+          case 2: return "9";
+          case 3: return isV7 ? "♯9" : "♭3";
+          case 4: return "3";
+          case 5: return "11";
+          case 6: return isV7 ? "♯11" : "♭5";
+          case 7: return "5";
+          case 8: return isV7 ? "♭13" : "#5";
+          case 9: return "13";
+          case 10: return "7";
+          case 11: return "M7";
+          default: return "";
+        }
+      };
+
+      const midiToAbcByKey = (midi, keySig, measureAccRef) => {
+        const flatsInKey = KEY_FLATS[keySig] || [];
+        const pitchClass = ((midi % 12) + 12) % 12;
+        const octave = Math.floor(midi / 12) - 1;
+
+        let baseName = "";
+        let targetState = "natural";
+
+        switch (pitchClass) {
+          case 0:  baseName = "C"; targetState = "natural"; break;
+          case 1:  baseName = "D"; targetState = "flat"; break;
+          case 2:  baseName = "D"; targetState = "natural"; break;
+          case 3:  baseName = "E"; targetState = "flat"; break;
+          case 4:  baseName = "E"; targetState = "natural"; break;
+          case 5:  baseName = "F"; targetState = "natural"; break;
+          case 6:  baseName = "G"; targetState = "flat"; break;
+          case 7:  baseName = "G"; targetState = "natural"; break;
+          case 8:  baseName = "A"; targetState = "flat"; break;
+          case 9:  baseName = "A"; targetState = "natural"; break;
+          case 10: baseName = "B"; targetState = "flat"; break;
+          case 11: baseName = "B"; targetState = "natural"; break;
+        }
+
+        let abc = baseName;
+        if (octave <= 2) abc = baseName + ",,";
+        else if (octave === 3) abc = baseName + ",";
+        else if (octave === 4) abc = baseName;
+        else if (octave === 5) abc = baseName.toLowerCase();
+        else if (octave >= 6) abc = baseName.toLowerCase() + "'";
+
+        const defaultState = flatsInKey.includes(baseName) ? "flat" : "natural";
+        const key = baseName + octave;
+        const currentState = measureAccRef[key] !== undefined ? measureAccRef[key] : defaultState;
+
+        let prefix = "";
+        if (targetState !== currentState) {
+          if (targetState === "flat") prefix = "_";
+          else if (targetState === "sharp") prefix = "^";
+          else if (targetState === "natural") prefix = "=";
+          measureAccRef[key] = targetState;
+        }
+
+        return prefix + abc;
+      };
+
+      const getPianoVoicing = (chordStr, keySig, accRef, beats = 4) => {
+        const info = getChordToneInfo(chordStr);
+        const r = midiToAbcByKey(48 + info.rootPitch, keySig, accRef);
+        const t = midiToAbcByKey(60 + ((info.rootPitch + info.thirdOffset) % 12), keySig, accRef);
+        const s = midiToAbcByKey(60 + ((info.rootPitch + info.seventhOffset) % 12), keySig, accRef);
+        return `[${r}${t}${s}]${beats}`;
+      };
+
+      // ============================================================================
+      // ★ メイン生成エンジン（モード1：Jaco Solo / モード2：16-Beat Groove）
+      // ============================================================================
+      const generateJacoScore = () => {
+        let fullLines = [];
+        let audioMelody = "";
+        let compingStr = "";
+        let allTabNotes = [];
+
+        const keySig = currentSong.key || "C";
+        const prevGuitarFretRef = { current: 9 };
+        const prevBassFretRef = { current: 8 };
+
+        // 1音追加ヘルパー（五線譜ABCトークン生成＋TAB座標登録＋度数ラベル追加）
+        const registerSingleNote = (midiPitch, chordInfo, accRef, degreeTokensOut, tabOptions = {}) => {
+          const abc = midiToAbcByKey(midiPitch, keySig, accRef);
+          if (tabOptions.customDegree) {
+            degreeTokensOut.push(tabOptions.customDegree);
+          } else {
+            const deg = getExactDegree(midiPitch % 12, chordInfo.rootPitch, chordInfo.isV7);
+            degreeTokensOut.push(deg || "·");
+          }
+
+          allTabNotes.push({
+            midi: midiPitch,
+            guitar: calcBestGuitarTab(midiPitch, prevGuitarFretRef, tabOptions),
+            bass: calcBestBassTab(midiPitch, prevBassFretRef, tabOptions)
+          });
+          return abc;
+        };
+
+        // ------------------------------------------------------------------------
+        // モード2：16ビート・グルーヴ生成（Kuru / Come On, Come Over / Teen Town）
+        // ------------------------------------------------------------------------
+        const buildGrooveHalfMeasure = (chordInfo, accRef, degreeTokensOut, isFirstHalf, measureIdx) => {
+          // 4弦の7〜10フレット付近（A1=33 -> 記譜A2=45 周辺）を基準ルートにする
+          let baseRoot = 48 + chordInfo.rootPitch;
+          if (baseRoot > 55) baseRoot -= 12; // 4弦5F〜10Fに収まりやすいよう調整
+
+          const thirdSemi = chordInfo.thirdOffset;
+          const seventhSemi = chordInfo.seventhOffset;
+
+          // A. 添付画像2『Kuru / Speak Like a Child』スタイル
+          if (grooveStyle === "kuru") {
+            // 画像2の1-2小節目の特徴：
+            // 4弦(R, b3/9) -> 3弦(5, b7) -> 2弦(9, 11) -> 1弦(b7, R, 10th) を駆け巡る連続16分音符
+            const patternVariant = (measureIdx + (isFirstHalf ? 0 : 1)) % 3;
+            let semiList = [];
+            if (patternVariant === 0) {
+              // 画像2・1小節目風：Low R -> 9 -> 5 -> b7 -> Low R -> 9 -> 5 -> b7
+              semiList = [
+                0, 2, 7, seventhSemi,
+                0, 2, 7, seventhSemi
+              ];
+            } else if (patternVariant === 1) {
+              // 画像2・1小節目後半〜2小節目風：3弦〜1弦へのストリング・シンクロナイゼーション (5 -> b7 -> 9 -> R -> 9 -> 11 -> b3(oct) -> 9)
+              semiList = [
+                7, seventhSemi, 14, 12,
+                7, seventhSemi, 14, 12 + thirdSemi
+              ];
+            } else {
+              // 画像2・2小節目後半〜3小節目風：ハイポジション10度・9度フック (9 -> 11 -> 14 -> 11 -> 7 -> 10 -> 12 -> 0)
+              semiList = [
+                7, seventhSemi, 14, 14 + thirdSemi,
+                19, 14 + thirdSemi, 14, seventhSemi
+              ];
+            }
+
+            const notesAbc = semiList.map(semi => {
+              const p = baseRoot + semi;
+              return registerSingleNote(p, chordInfo, accRef, degreeTokensOut, {
+                preferHigh: semi >= 14,
+                allowOpen: true
+              });
+            });
+
+            return `${notesAbc[0]}/${notesAbc[1]}/${notesAbc[2]}/${notesAbc[3]}/ ${notesAbc[4]}/${notesAbc[5]}/${notesAbc[6]}/${notesAbc[7]}/`;
+          }
+
+          // B. 『Come On, Come Over』R&B 16th Funk スタイル
+          if (grooveStyle === "come_on") {
+            // オクターブ・バウンス ＋ b7 -> 6 -> 5 クロマチック・ファンクパッシング
+            if (isFirstHalf) {
+              const n1 = registerSingleNote(baseRoot, chordInfo, accRef, degreeTokensOut);
+              const n2 = registerSingleNote(baseRoot + 12, chordInfo, accRef, degreeTokensOut);
+              const n3 = registerSingleNote(baseRoot + 10, chordInfo, accRef, degreeTokensOut);
+              const n4 = registerSingleNote(baseRoot + 12, chordInfo, accRef, degreeTokensOut);
+              const n5 = registerSingleNote(baseRoot, chordInfo, accRef, degreeTokensOut, { customDegree: ghostDensity !== "light" ? "×" : "R" });
+              const n6 = registerSingleNote(baseRoot + 7, chordInfo, accRef, degreeTokensOut);
+              const n7 = registerSingleNote(baseRoot + 10, chordInfo, accRef, degreeTokensOut);
+              return `${n1}${n2}/${n3}/ z/${n4}/${n5}/${n6}/${n7}/`;
+            } else {
+              // 3-4拍目：Jaco定番の b7 -> 6(9) -> 5 -> b3 -> R 16分クロマチック・ライン
+              const semiSeq = [10, 9, 7, 5, thirdSemi, 2, 0, -2];
+              const notesAbc = semiSeq.map((s, idx) => {
+                const isGhost = ghostDensity === "heavy" && idx === 4;
+                return registerSingleNote(baseRoot + s, chordInfo, accRef, degreeTokensOut, {
+                  customDegree: isGhost ? "×" : undefined
+                });
+              });
+              return `${notesAbc[0]}/${notesAbc[1]}/${notesAbc[2]}/${notesAbc[3]}/ ${notesAbc[4]}/${notesAbc[5]}/${notesAbc[6]}/${notesAbc[7]}/`;
+            }
+          }
+
+          // C. 『Teen Town / Havona』16th Syncopated Fusion スタイル
+          const semiTeen = isFirstHalf
+            ? [0, thirdSemi, 7, 9, 10, 12, 10, 7]
+            : [12, 10, 9, 7, thirdSemi, 4, 7, 0];
+          const teenAbc = semiTeen.slice(0, 7).map(s => registerSingleNote(baseRoot + s, chordInfo, accRef, degreeTokensOut));
+          return `z/${teenAbc[0]}/${teenAbc[1]}/${teenAbc[2]}/ ${teenAbc[3]}/${teenAbc[4]}/${teenAbc[5]}/${teenAbc[6]}/`;
+        };
+
+        // ------------------------------------------------------------------------
+        // モード1：Jaco Solo（歌心・休符・ロングトーン・3連符・10度重音・ハーモニクス・ここぞの16分）
+        // ------------------------------------------------------------------------
+        const buildChordOrHarmonicsHalf = (chordInfo, accRef, degreeTokensOut) => {
+          const rChoice = Math.random();
+          let baseRoot = 48 + chordInfo.rootPitch;
+          if (baseRoot > 54) baseRoot -= 12;
+
+          // パターン1：『Continuum』(p.42-43) /『Blackbird』風 10度・6度ダブルストップ＋メロディック解決
+          if (rChoice < 0.60) {
+            const rootNote = baseRoot; 
+            const tenthNote = baseRoot + 12 + chordInfo.thirdOffset;
+
+            const openE = 28;
+            const openG = 43;
+            const fret4 = Math.max(2, Math.min(14, (rootNote - 12) - openE));
+            const fret1 = Math.max(2, Math.min(16, (tenthNote - 12) - openG));
+
+            const abcLow = midiToAbcByKey(rootNote, keySig, accRef);
+            const abcHigh = midiToAbcByKey(tenthNote, keySig, accRef);
+
+            allTabNotes.push({
+              midi: rootNote,
+              guitar: calcBestGuitarTab(rootNote, prevGuitarFretRef),
+              bass: { string: 4, fret: fret4 }
+            });
+            allTabNotes.push({
+              midi: tenthNote,
+              guitar: calcBestGuitarTab(tenthNote, prevGuitarFretRef),
+              bass: { string: 1, fret: fret1 }
+            });
+            degreeTokensOut.push("10th-Chord");
+
+            // 10度重音を2拍しっかり響かせるか、後半に9thを添える
+            if (Math.random() < 0.5) {
+              return `"^10th Let Ring"[${abcLow}${abcHigh}]4`;
+            }
+            const melody9th = registerSingleNote(baseRoot + 14, chordInfo, accRef, degreeTokensOut, { preferHigh: true });
+            return `"^10th Voicing"[${abcLow}${abcHigh}]3 ${melody9th}`;
+          }
+
+          // パターン2：『Portrait of Tracy』(p.76) /『Continuum』(p.38) ナチュラル・ハーモニクス＋余韻
+          const harmSet = [
+            { pitch: 64, string: 3, fretLabel: "<4>", deg: "Harm<4>" },
+            { pitch: 67, string: 2, fretLabel: "<5>", deg: "Harm<5>" },
+            { pitch: 62, string: 2, fretLabel: "<7>", deg: "Harm<7>" },
+            { pitch: 67, string: 1, fretLabel: "<7>", deg: "Harm<7>" }
+          ];
+
+          const h1 = harmSet[Math.floor(Math.random() * harmSet.length)];
+          const h2 = harmSet[(harmSet.indexOf(h1) + 1) % harmSet.length];
+
+          const abc1 = registerSingleNote(h1.pitch, chordInfo, accRef, degreeTokensOut, {
+            forcedString: h1.string,
+            forcedFret: 5,
+            fretLabel: h1.fretLabel,
+            isHarmonic: true,
+            customDegree: h1.deg
+          });
+          const abc2 = registerSingleNote(h2.pitch, chordInfo, accRef, degreeTokensOut, {
+            forcedString: h2.string,
+            forcedFret: 7,
+            fretLabel: h2.fretLabel,
+            isHarmonic: true,
+            customDegree: h2.deg
+          });
+
+          return `"^Harm. Let Ring"${abc1} ${abc2}3`;
+        };
+
+        const buildSoloHalfMeasure = (chordInfo, accRef, degreeTokensOut, isFirstHalf) => {
+          // コード＆ハーモニクスの挿入判定
+          const harmChance = chordHarmonicsFreq === "often" ? 0.32 : (chordHarmonicsFreq === "sometimes" ? 0.16 : 0);
+          if (Math.random() < harmChance) {
+            return buildChordOrHarmonicsHalf(chordInfo, accRef, degreeTokensOut);
+          }
+
+          // 使用するセルプールを選択（16分で埋めず、ContinuumのリリカルなフレーズやDonna Leeの8分/3連を中心に構成）
+          let pool = [];
+          if (soloFocus === "continuum_lyrical") {
+            pool = JACO_CONTINUUM_LYRICAL_CELLS;
+          } else if (soloFocus === "penta_cascade") {
+            pool = [...JACO_PENTA_DYNAMIC_HALF_CELLS, ...JACO_CONTINUUM_LYRICAL_CELLS.slice(0, 2)];
+          } else if (soloFocus === "parker_bebop") {
+            pool = JACO_PARKER_CELLS;
+          } else if (soloFocus === "diminished") {
+            pool = JACO_DIMINISHED_CELLS;
+          } else {
+            // Jaco Total Mix: Continuumの歌心・間をベースに、Parkerビバップ、ペンタ、V7でのディミニッシュを自然にブレンド
+            if (chordInfo.isV7 || chordInfo.isDim) {
+              pool = [...JACO_DIMINISHED_CELLS, ...JACO_PARKER_CELLS, JACO_CONTINUUM_LYRICAL_CELLS[2]];
+            } else {
+              pool = [
+                ...JACO_CONTINUUM_LYRICAL_CELLS,
+                ...JACO_PENTA_DYNAMIC_HALF_CELLS,
+                ...JACO_PARKER_CELLS
+              ];
+            }
+          }
+
+          const cell = pool[Math.floor(Math.random() * pool.length)];
+          let baseRoot = 48 + chordInfo.rootPitch;
+          if (baseRoot > 55) baseRoot -= 12;
+
+          const rawIntervals = cell.intervals
+            ? cell.intervals
+            : ((chordInfo.isMinor || chordInfo.isDim) ? cell.intervalsMinor : cell.intervalsMajor);
+
+          const abcTokens = rawIntervals.map(semi => {
+            let p = baseRoot + semi;
+            while (p < 41) p += 12;
+            while (p > 74) p -= 12;
+            return registerSingleNote(p, chordInfo, accRef, degreeTokensOut, {
+              allowHigh19: true,
+              preferHigh: cell.preferHighStretch || semi >= 11
+            });
+          });
+
+          const tagPrefix = isFirstHalf && cell.tag ? `"^${cell.tag}"` : "";
+
+          switch (cell.pattern) {
+            case "z8_16x2_dot4":
+              // 8分休符 + 16分2音ピックアップ + 付点4分音符の伸び (計4/8拍)
+              return `${tagPrefix}z ${abcTokens[0]}/${abcTokens[1]}/ ${abcTokens[2]}2`;
+            case "8_8_4":
+              // 8分 + 8分 + 4分音符ホールド (計4/8拍)
+              return `${tagPrefix}${abcTokens[0]}${abcTokens[1]} ${abcTokens[2]}2`;
+            case "trip_4":
+              // 8分3連符 + 4分音符ホールド (計4/8拍)
+              return `${tagPrefix}(3${abcTokens[0]}${abcTokens[1]}${abcTokens[2]} ${abcTokens[3]}2`;
+            case "16x3_8_4":
+              // 16分2つ+8分(9-10-11ピックアップ) + 8分 + 8分タイ風 (計4/8拍)
+              return `${tagPrefix}${abcTokens[0]}/${abcTokens[1]}/${abcTokens[2]} ${abcTokens[3]}${abcTokens[4]}`;
+            case "88_4":
+              return `${tagPrefix}${abcTokens[0]}${abcTokens[1]} ${abcTokens[2]}2`;
+            case "4_z8_8":
+              return `${tagPrefix}${abcTokens[0]}2 z${abcTokens[1]}`;
+            case "16x4_4":
+              // 1拍目だけ16分4音 + 2拍目は4分音符でしっかり伸ばす (計4/8拍)
+              return `${tagPrefix}${abcTokens[0]}/${abcTokens[1]}/${abcTokens[2]}/${abcTokens[3]}/ ${abcTokens[4]}2`;
+            case "8_z16_16_4":
+              return `${tagPrefix}${abcTokens[0]}z/${abcTokens[1]}/ ${abcTokens[2]}${abcTokens[3]}`;
+            case "z8_8_88":
+              return `${tagPrefix}z${abcTokens[0]} ${abcTokens[1]}${abcTokens[2]}`;
+            case "88_trip":
+              return `${tagPrefix}${abcTokens[0]}${abcTokens[1]} (3${abcTokens[2]}${abcTokens[3]}${abcTokens[4]}`;
+            case "4_88":
+              return `${tagPrefix}${abcTokens[0]}2 ${abcTokens[1]}${abcTokens[2]}`;
+            case "trip_88":
+              return `${tagPrefix}(3${abcTokens[0]}${abcTokens[1]}${abcTokens[2]} ${abcTokens[3]}${abcTokens[4]}`;
+            case "88_88":
+            default:
+              return `${tagPrefix}${abcTokens[0]}${abcTokens[1]} ${abcTokens[2]}${abcTokens[3]}`;
+          }
+        };
+
+        // ------------------------------------------------------------------------
+        // 全小節ループ生成
+        // ------------------------------------------------------------------------
+        for (let m = 0; m < measureCount; m++) {
+          const chordRaw = chords[m] || "Cm7";
+          const chordList = chordRaw.split(/\s+/).filter(c => c.length > 0);
+          const chord1 = chordList[0] || "Cm7";
+          const chord2 = chordList.length >= 2 ? chordList[1] : chord1;
+
+          const info1 = getChordToneInfo(chord1);
+          const info2 = getChordToneInfo(chord2);
+
+          let accV1 = {};
+          let accComp = {};
+
+          if (chord1 !== chord2) {
+            compingStr += `${getPianoVoicing(chord1, keySig, accComp, 4)} ${getPianoVoicing(chord2, keySig, accComp, 4)} | `;
+          } else {
+            compingStr += `${getPianoVoicing(chord1, keySig, accComp, 4)} ${getPianoVoicing(chord1, keySig, accComp, 4)} | `;
+          }
+
+          let degreeTokens = [];
+          let measureMelodyStr = "";
+
+          // 最終小節の解決（Jacoらしく10度重音またはロングトーンで締める）
+          if (m === measureCount - 1 && mainMode === "solo") {
+            const half1 = `"${chord1}"` + buildSoloHalfMeasure(info1, accV1, degreeTokens, true);
+            let baseRoot = 48 + info2.rootPitch;
+            if (baseRoot > 54) baseRoot -= 12;
+            const finalAbc = registerSingleNote(baseRoot + 12 + info2.thirdOffset, info2, accV1, degreeTokens, { preferHigh: true });
+            const chord2Tag = chord1 !== chord2 ? `"${chord2}"` : "";
+            measureMelodyStr = `${half1} ${chord2Tag}${finalAbc}4 | `;
+          }
+          // モード1（Solo）で1小節カスケードが発動する場合も、4拍目は四分音符でしっかり伸ばして「歌う余白」を作る（4小節に1回程度のアクセント）
+          else if (
+            mainMode === "solo" &&
+            chord1 === chord2 &&
+            ((soloFocus === "penta_cascade" && m % 2 === 1) || (soloFocus === "jaco_mix" && m % 4 === 3))
+          ) {
+            const fullCell = JACO_PENTA_CASCADE_FULL_BAR[m % JACO_PENTA_CASCADE_FULL_BAR.length];
+            const intervals12 = (info1.isMinor || info1.isDim) ? fullCell.intervalsMinor12 : fullCell.intervalsMajor12;
+            const targetSemi = (info1.isMinor || info1.isDim) ? fullCell.targetHoldMinor : fullCell.targetHoldMajor;
+
+            let baseRoot = 48 + info1.rootPitch;
+            if (baseRoot > 53) baseRoot -= 12;
+
+            const notes12 = intervals12.map(semi => {
+              const p = baseRoot + semi;
+              return registerSingleNote(p, info1, accV1, degreeTokens, {
+                allowHigh19: true,
+                preferHigh: semi >= 12
+              });
+            });
+            const holdNote = registerSingleNote(baseRoot + targetSemi, info1, accV1, degreeTokens, {
+              allowHigh19: true,
+              preferHigh: true
+            });
+
+            const beat1 = `${notes12[0]}/${notes12[1]}/${notes12[2]}/${notes12[3]}/`;
+            const beat2 = `${notes12[4]}/${notes12[5]}/${notes12[6]}/${notes12[7]}/`;
+            const beat3 = `${notes12[8]}/${notes12[9]}/${notes12[10]}/${notes12[11]}/`;
+            // 4拍目は2拍分(L:1/8で長さ2)の四分音符でMwahビブラート！
+            const beat4 = `${holdNote}2`;
+
+            measureMelodyStr = `"${chord1}""^${fullCell.tag}"${beat1} ${beat2} ${beat3} ${beat4} | `;
+          }
+          // 通常の前半2拍＋後半2拍生成
+          else {
+            let half1Str = `"${chord1}"`;
+            let half2Str = chord1 !== chord2 ? `"${chord2}"` : "";
+
+            if (mainMode === "groove") {
+              half1Str += buildGrooveHalfMeasure(info1, accV1, degreeTokens, true, m);
+              half2Str += buildGrooveHalfMeasure(info2, accV1, degreeTokens, false, m);
+            } else {
+              half1Str += buildSoloHalfMeasure(info1, accV1, degreeTokens, true);
+              half2Str += buildSoloHalfMeasure(info2, accV1, degreeTokens, false);
+            }
+
+            measureMelodyStr = `${half1Str} ${half2Str} | `;
+          }
+
+          const measureLyricStr = degreeTokens.join(" ") + " | ";
+          fullLines.push({ melody: measureMelodyStr, lyric: measureLyricStr });
+          audioMelody += measureMelodyStr;
+
+          if ((m + 1) % 3 === 0) {
+            audioMelody += "\n";
+            compingStr += "\n";
+          }
+        }
+
+        setTabNotesData(allTabNotes);
+
+        // 16分音符が見やすいよう1段あたり3小節（または最終段調整）でゆったり描画
+        const measuresPerLine = 3;
+        let header = "X: 1\n";
+        const modeSubtitle = mainMode === "solo"
+          ? `Jaco Solo Etude (${soloFocus.toUpperCase()})`
+          : `Jaco 16-Beat Groove (${JACO_GROOVE_STYLES[grooveStyle].name})`;
+        header += `T: ${currentSong.title} - ${modeSubtitle}\n`;
+        header += "M: 4/4\n";
+        header += "L: 1/8\n";
+        header += `K: ${keySig}\n`;
+        header += "%%staffwidth 860\n";
+        header += "%%stretchlast 1\n";
+        header += "%%gchord 28\n";
+
+        let scoreBody = "";
+        for (let i = 0; i < fullLines.length; i += measuresPerLine) {
+          let lineMelody = "";
+          let lineLyric = "";
+          for (let j = 0; j < measuresPerLine; j++) {
+            if (fullLines[i + j]) {
+              lineMelody += fullLines[i + j].melody;
+              lineLyric += fullLines[i + j].lyric;
+            }
+          }
+          scoreBody += lineMelody + "\n";
+          if (showDegrees) {
+            scoreBody += "w: " + lineLyric + "\n";
+          }
+        }
+
+        setAbcString(header + scoreBody);
+
+        // MIDIオーディオはフレットレスベース音色 (MIDI Program 35: Fretless Bass) を使用し、実音に合わせて1オクターブ下(transpose=-12)で再生
+        let audioH = "X: 1\n";
+        audioH += "M: 4/4\n";
+        audioH += "L: 1/8\n";
+        audioH += `Q: 1/4=${bpm}\n`;
+        audioH += `K: ${keySig}\n`;
+        audioH += "%%staves (1 2)\n";
+        audioH += "V: 1 clef=treble transpose=-12\n%%MIDI program 35\n%%MIDI control 7 120\n"; 
+        audioH += "V: 2 clef=treble\n%%MIDI program 4\n%%MIDI control 7 65\n"; // エレピ (Rhodes) バッキング
+
+        setAudioAbcString(audioH + "[V: 1]\n" + audioMelody + "[V: 2]\n" + compingStr);
+        setBackingAbcString(audioH + "[V: 1]\n%%MIDI control 7 0\n" + audioMelody + "[V: 2]\n" + compingStr);
+      };
+
+      const selectSong = (song) => {
+        setMeasureCount(song.measures);
+        if (song.defaultBpm) setBpm(song.defaultBpm);
+        const newChords = Array(64).fill("");
+        song.chords.forEach((c, i) => { newChords[i] = c; });
+        setChords(newChords);
+        setCurrentSong(song);
+        setIsModalOpen(false);
+      };
+
+      return (
+        <div className="min-h-screen bg-stone-100 print:bg-white text-slate-800 p-4 md:p-6 print:p-0">
+          <div className="max-w-6xl mx-auto space-y-5 print:space-y-0">
+            
+            {/* ヘッダー（サンバースト・フレットレス・テーマ） */}
+            <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-stone-900 via-amber-950 to-stone-900 text-white p-5 rounded-2xl shadow-md print:hidden">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 bg-amber-500 text-stone-950 rounded-xl shadow-inner font-black text-lg tracking-tighter">
+                  JP
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-extrabold tracking-tight text-amber-50">
+                      Jaco Pastorius Style Studio
+                    </h1>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded-full">
+                      Fretless Bass Edition
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-300 mt-0.5">
+                    16thペンタトニック・カスケード / Parkerビバップ / ディミニッシュ / 10度重音＆ハーモニクス / Kuru &amp; Come On 16ビート
+                  </p>
+                </div>
+              </div>
+
+              {/* TAB譜モード切替 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-stone-300">譜面表示:</span>
+                <div className="flex bg-stone-800 p-1 rounded-xl gap-1 border border-stone-700">
+                  <button
+                    onClick={() => setTabView('bass')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${tabView === 'bass' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-300 hover:text-white'}`}
+                  >
+                    4弦ベースTAB (7〜19F対応)
+                  </button>
+                  <button
+                    onClick={() => setTabView('guitar')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${tabView === 'guitar' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-300 hover:text-white'}`}
+                  >
+                    ギターTAB
+                  </button>
+                  <button
+                    onClick={() => setTabView('none')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${tabView === 'none' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-300 hover:text-white'}`}
+                  >
+                    五線譜のみ
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            {/* 大きく2つのモード切替タブ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 print:hidden">
+              <button
+                onClick={() => setMainMode("solo")}
+                className={`p-4 rounded-2xl border-2 text-left transition flex items-start justify-between ${
+                  mainMode === "solo"
+                    ? "bg-amber-50/90 border-amber-600 shadow-sm"
+                    : "bg-white border-stone-200 hover:border-stone-300 opacity-80"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded bg-amber-600 text-white">Mode 1</span>
+                    <h2 className="font-extrabold text-base text-stone-900">Jaco Solo &amp; Lyrical Vocabulary</h2>
+                  </div>
+                  <p className="text-xs text-stone-600 mt-1">
+                    ハイポジション・ペンタトニック16分カスケード（画像1）、チャーリー・パーカー風ビバップ、ディミニッシュ、10度コード＆ナチュラルハーモニクス
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 ${mainMode === "solo" ? "border-amber-600 bg-amber-600 text-white" : "border-stone-300"}`}>
+                  {mainMode === "solo" && "✓"}
+                </div>
+              </button>
+
+              <button
+                onClick={() => setMainMode("groove")}
+                className={`p-4 rounded-2xl border-2 text-left transition flex items-start justify-between ${
+                  mainMode === "groove"
+                    ? "bg-sky-50/90 border-sky-600 shadow-sm"
+                    : "bg-white border-stone-200 hover:border-stone-300 opacity-80"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded bg-sky-600 text-white">Mode 2</span>
+                    <h2 className="font-extrabold text-base text-stone-900">16-Beat Groove Backing (Kuru / Come On)</h2>
+                  </div>
+                  <p className="text-xs text-stone-600 mt-1">
+                    『Kuru / Speak Like a Child』（画像2）の弦飛び16分シンクロナイゼーションや、『Come On, Come Over』のR&amp;Bファンク・バッキングをコード進行に展開
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 ${mainMode === "groove" ? "border-sky-600 bg-sky-600 text-white" : "border-stone-300"}`}>
+                  {mainMode === "groove" && "✓"}
+                </div>
+              </button>
+            </div>
+
+            {/* モード別詳細コントロールバー */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-white p-5 rounded-2xl shadow-sm border border-stone-200 print:hidden">
+              
+              {mainMode === "solo" ? (
+                <>
+                  {/* ソロ・アプローチ選択 */}
+                  <div className="lg:col-span-5 space-y-2">
+                    <label className="block text-xs font-extrabold text-stone-600 uppercase tracking-wider">
+                      Jaco ソロ・フレージング（歌心・3連符・ピックアップ・カスケード）
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                      <button
+                        onClick={() => setSoloFocus('jaco_mix')}
+                        className={`py-2 px-1.5 text-[11px] rounded-xl border text-center transition ${soloFocus === 'jaco_mix' ? 'bg-amber-600 border-amber-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Jaco Total Mix
+                      </button>
+                      <button
+                        onClick={() => setSoloFocus('continuum_lyrical')}
+                        className={`py-2 px-1.5 text-[11px] rounded-xl border text-center transition ${soloFocus === 'continuum_lyrical' ? 'bg-amber-600 border-amber-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Continuum (歌心)
+                      </button>
+                      <button
+                        onClick={() => setSoloFocus('penta_cascade')}
+                        className={`py-2 px-1.5 text-[11px] rounded-xl border text-center transition ${soloFocus === 'penta_cascade' ? 'bg-amber-600 border-amber-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Penta (緩急+19F)
+                      </button>
+                      <button
+                        onClick={() => setSoloFocus('parker_bebop')}
+                        className={`py-2 px-1.5 text-[11px] rounded-xl border text-center transition ${soloFocus === 'parker_bebop' ? 'bg-amber-600 border-amber-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Donna Lee / Bird
+                      </button>
+                      <button
+                        onClick={() => setSoloFocus('diminished')}
+                        className={`py-2 px-1.5 text-[11px] rounded-xl border text-center transition ${soloFocus === 'diminished' ? 'bg-amber-600 border-amber-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Dim (3連+Burst)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* コード＆ハーモニクス頻度 */}
+                  <div className="lg:col-span-3 space-y-2">
+                    <label className="block text-xs font-extrabold text-stone-600 uppercase tracking-wider">
+                      10度コード &amp; ハーモニクス &lt;&gt;
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setChordHarmonicsFreq('none')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${chordHarmonicsFreq === 'none' ? 'bg-stone-800 border-stone-900 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        単音のみ
+                      </button>
+                      <button
+                        onClick={() => setChordHarmonicsFreq('sometimes')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${chordHarmonicsFreq === 'sometimes' ? 'bg-sky-600 border-sky-700 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        たまに混ぜる
+                      </button>
+                      <button
+                        onClick={() => setChordHarmonicsFreq('often')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${chordHarmonicsFreq === 'often' ? 'bg-sky-600 border-sky-700 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        多めに配置
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 16ビート・バッキング・スタイル選択 */}
+                  <div className="lg:col-span-5 space-y-2">
+                    <label className="block text-xs font-extrabold text-stone-600 uppercase tracking-wider">
+                      16ビート・グルーヴ・パターン
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setGrooveStyle('kuru')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${grooveStyle === 'kuru' ? 'bg-sky-600 border-sky-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Kuru (画像2・弦飛び)
+                      </button>
+                      <button
+                        onClick={() => setGrooveStyle('come_on')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${grooveStyle === 'come_on' ? 'bg-sky-600 border-sky-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Come On, Come Over
+                      </button>
+                      <button
+                        onClick={() => setGrooveStyle('teen_town')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${grooveStyle === 'teen_town' ? 'bg-sky-600 border-sky-700 text-white font-bold shadow-sm' : 'border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+                      >
+                        Teen Town Sync
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ゴースト＆ニュアンス密度 */}
+                  <div className="lg:col-span-3 space-y-2">
+                    <label className="block text-xs font-extrabold text-stone-600 uppercase tracking-wider">
+                      16分ゴースト &amp; ミュート感
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setGhostDensity('light')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${ghostDensity === 'light' ? 'bg-stone-800 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        実音重視
+                      </button>
+                      <button
+                        onClick={() => setGhostDensity('authentic')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${ghostDensity === 'authentic' ? 'bg-amber-600 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        Jaco標準
+                      </button>
+                      <button
+                        onClick={() => setGhostDensity('heavy')}
+                        className={`py-2 px-2 text-xs rounded-xl border text-center transition ${ghostDensity === 'heavy' ? 'bg-amber-600 text-white font-bold' : 'border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                      >
+                        パーカッシブ
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 曲選択＆テンポ */}
+              <div className="lg:col-span-2 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-extrabold text-stone-600 uppercase">
+                    BPM: {bpm}
+                  </label>
+                  <span className="text-[11px] text-stone-500 font-semibold">{measureCount}小節</span>
+                </div>
+                <input 
+                  type="range" min="75" max="190" step="2" value={bpm} 
+                  onChange={(e) => setBpm(Number(e.target.value))} 
+                  className="w-full accent-amber-600 h-2 bg-stone-200 rounded-lg cursor-pointer"
+                />
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-stone-100 hover:bg-amber-50 hover:border-amber-300 text-stone-800 font-bold rounded-lg border border-stone-300 transition truncate"
+                >
+                  曲選択: {currentSong.title}
+                </button>
+              </div>
+
+              {/* 再生成ボタン */}
+              <div className="lg:col-span-2 flex flex-col justify-end">
+                <button
+                  onClick={generateJacoScore}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-extrabold rounded-xl shadow-md transition active:scale-[0.98] flex items-center justify-center gap-1.5 text-xs"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 21v-5h5"></path></svg>
+                  フレーズを再生成
+                </button>
+              </div>
+            </div>
+
+            {/* コード進行エディタ */}
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-200 print:hidden">
+              <div className="flex flex-wrap justify-between items-center mb-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-stone-700 uppercase tracking-wider">
+                    コード進行 ({measureCount} 小節 / Key: {currentSong.key})
+                  </span>
+                  <span className="text-[11px] px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-medium border border-amber-200">
+                    自由編集可能（スペース区切りで1小節2コード対応）
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => setMeasureCount(16)}
+                    className={`px-2 py-0.5 rounded font-bold ${measureCount === 16 ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                  >
+                    16小節
+                  </button>
+                  <button
+                    onClick={() => setMeasureCount(32)}
+                    className={`px-2 py-0.5 rounded font-bold ${measureCount === 32 ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                  >
+                    32小節
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 max-h-28 overflow-y-auto pr-1 custom-scrollbar">
+                {Array.from({ length: measureCount }).map((_, i) => (
+                  <div key={i} className="flex flex-col">
+                    <span className="text-[9px] text-stone-400 font-mono pl-1">{i + 1}</span>
+                    <input
+                      type="text"
+                      value={chords[i] || ""}
+                      onChange={(e) => {
+                        const newC = [...chords];
+                        newC[i] = e.target.value;
+                        setChords(newC);
+                      }}
+                      placeholder="Cm7"
+                      className="border border-stone-200 px-2 py-1 rounded text-xs font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 楽譜 & シンセプレイヤー（フレットレスベース＋エレピ伴奏） */}
+            <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden print:border-none print:shadow-none">
+              <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 flex flex-wrap justify-between items-center gap-3 print:hidden">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={isBackingOnly}
+                      onChange={(e) => setIsBackingOnly(e.target.checked)}
+                      className="w-4 h-4 accent-amber-600 rounded border-stone-300"
+                    />
+                    <span>エレピ伴奏のみ再生（マイナスワン練習）</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={showDegrees}
+                      onChange={(e) => setShowDegrees(e.target.checked)}
+                      className="w-4 h-4 accent-amber-600 rounded border-stone-300"
+                    />
+                    <span>度数・奏法ガイドを表示（R, 9, 13, Harm&lt;7&gt;, 10th）</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div ref={audioRef}></div>
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-2 text-xs bg-white border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold rounded-xl shadow-sm transition flex items-center gap-1.5"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    PDF / 印刷
+                  </button>
+                </div>
+              </div>
+
+              {/* 楽譜描画キャンバス */}
+              <div className="p-4 md:p-8 flex justify-center bg-white overflow-x-auto custom-scrollbar">
+                <div className="w-full max-w-[900px]">
+                  <div id="paper" className="w-full"></div>
+                  <div id="audio-paper" style={{ position: 'absolute', top: '-9999px', visibility: 'hidden' }}></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* プリセット曲選択モーダル */}
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[82vh] overflow-hidden flex flex-col border border-stone-200">
+                <div className="px-5 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-900 text-white">
+                  <div>
+                    <h2 className="font-extrabold text-sm">スタンダード &amp; Jaco プリセット進行を選択</h2>
+                    <p className="text-[11px] text-stone-400">選択後もどのモード（Solo / 16-Beat Groove）でも自由に組み合わせられます</p>
+                  </div>
+                  <button onClick={() => setIsModalOpen(false)} className="text-stone-400 hover:text-white text-lg px-2">✕</button>
+                </div>
+                <div className="p-3 overflow-y-auto custom-scrollbar space-y-1.5">
+                  {standardSongs.map((song, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => selectSong(song)}
+                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition flex justify-between items-center group"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-stone-900 group-hover:text-amber-800">{song.title}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-mono">Key: {song.key}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100/70 text-amber-900 rounded-md">
+                          {song.category}
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 bg-stone-100 text-stone-600 rounded-md font-mono">
+                          {song.measures}小節
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
